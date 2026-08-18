@@ -1,0 +1,17 @@
+[package]
+name = "cram"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Local gateway for cloud AI platforms"
+
+[dependencies]
+cram-vertex = { path = "../cram-vertex" }
+anyhow.workspace = true
+axum.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
