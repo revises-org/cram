@@ -62,7 +62,16 @@ impl GcpTokenSource {
         provider
             .token(SCOPES)
             .await
-            .map_err(|e| anyhow::anyhow!("GCP credentials are not usable: {e}"))?;
+            .map_err(|e| {
+                let msg = e.to_string();
+                if msg.contains("invalid_grant") || msg.contains("403") {
+                    anyhow::anyhow!(
+                        "GCP credentials found but not usable. Are you missing roles/aiplatform.user?\nError details: {e}"
+                    )
+                } else {
+                    anyhow::anyhow!("GCP credentials are not usable: {e}")
+                }
+            })?;
 
         Ok(Self { provider })
     }

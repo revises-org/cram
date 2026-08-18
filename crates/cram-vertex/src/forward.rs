@@ -128,6 +128,7 @@ pub async fn forward(st: Arc<AppState>, url: String, body: Value, streaming: boo
             status: status.as_u16(),
             streamed: false,
             duration: started.elapsed(),
+            ttfb: None,
             usage,
         });
 
@@ -151,6 +152,7 @@ fn stream_response(
     // block rather than a stream-generator macro keeps the control flow
     // ordinary Rust, which both humans and tooling read more reliably.
     tokio::spawn(async move {
+        let mut ttfb: Option<std::time::Duration> = None;
         let mut upstream = resp.bytes_stream();
         let mut lines = LineAccumulator::new();
         let mut tools = ToolCallAccumulator::new();
@@ -164,6 +166,10 @@ fn stream_response(
         let mut failed = false;
 
         'outer: while let Some(part) = upstream.next().await {
+            if ttfb.is_none() && part.is_ok() {
+                ttfb = Some(started.elapsed());
+            }
+
             let part = match part {
                 Ok(b) => b,
                 Err(e) => {
@@ -283,6 +289,7 @@ fn stream_response(
             status: status.as_u16(),
             streamed: true,
             duration: started.elapsed(),
+            ttfb,
             usage,
         });
     });

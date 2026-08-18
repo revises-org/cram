@@ -22,7 +22,9 @@ use crate::{
 /// Fields an OpenAI client may send that Vertex rejects with a 400. We drop
 /// them silently rather than letting the request fail — they are all metadata
 /// that has no effect on the generated output.
-const DROP_FIELDS: &[&str] = &["prompt_cache_key", "safety_identifier", "store", "metadata"];
+// Verified against Vertex: prompt_cache_key is accepted and must be
+// forwarded. The remaining entries have not been tested individually.
+const DROP_FIELDS: &[&str] = &["safety_identifier", "store", "metadata"];
 
 /// Forward an OpenAI-shaped request to Vertex.
 ///

@@ -30,6 +30,7 @@ pub struct Usage {
     /// A one-line greeting to a thinking model can spend hundreds of these, so
     /// request counts are a poor proxy for cost.
     pub reasoning_tokens: u64,
+    pub cached_tokens: Option<u64>,
 }
 
 /// What happened during one completion.
@@ -40,6 +41,7 @@ pub struct CompletionEvent {
     pub status: u16,
     pub streamed: bool,
     pub duration: Duration,
+    pub ttfb: Option<Duration>,
     /// `None` when the token counts are unknown — most often because the client
     /// disconnected before the final chunk arrived.
     ///
@@ -60,13 +62,21 @@ pub trait Observer: Send + Sync + 'static {
 /// Reasoning tokens live in a nested `completion_tokens_details` object rather
 /// than at the top level.
 pub fn parse_usage(usage: &serde_json::Map<String, serde_json::Value>) -> Usage {
+    tracing::debug!(raw = %serde_json::to_string(usage).unwrap_or_default(), "usage");
+
     let num = |v: Option<&serde_json::Value>| v.and_then(serde_json::Value::as_u64).unwrap_or(0);
+    let opt_num = |v: Option<&serde_json::Value>| v.and_then(serde_json::Value::as_u64);
     Usage {
         prompt_tokens: num(usage.get("prompt_tokens")),
         completion_tokens: num(usage.get("completion_tokens")),
         reasoning_tokens: num(usage
             .get("completion_tokens_details")
             .and_then(|d| d.get("reasoning_tokens"))),
+        cached_tokens: opt_num(
+            usage
+                .get("prompt_tokens_details")
+                .and_then(|d| d.get("cached_tokens")),
+        ),
     }
 }
 
@@ -81,12 +91,14 @@ mod tests {
             "prompt_tokens": 8,
             "completion_tokens": 6,
             "total_tokens": 931,
-            "completion_tokens_details": {"reasoning_tokens": 917}
+            "completion_tokens_details": {"reasoning_tokens": 917},
+            "prompt_tokens_details": {"cached_tokens": 11588}
         });
         let u = parse_usage(raw.as_object().unwrap());
         assert_eq!(u.prompt_tokens, 8);
         assert_eq!(u.completion_tokens, 6);
         assert_eq!(u.reasoning_tokens, 917);
+        assert_eq!(u.cached_tokens, Some(11588));
     }
 
     #[test]
@@ -95,5 +107,6 @@ mod tests {
         let u = parse_usage(raw.as_object().unwrap());
         assert_eq!(u.prompt_tokens, 1);
         assert_eq!(u.reasoning_tokens, 0);
+        assert_eq!(u.cached_tokens, None);
     }
 }

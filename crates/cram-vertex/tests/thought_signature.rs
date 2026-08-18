@@ -327,6 +327,7 @@ async fn observer_receives_token_counts() {
             prompt_tokens: 8,
             completion_tokens: 6,
             reasoning_tokens: 917,
+            cached_tokens: None,
         }),
         "reasoning tokens are billed but invisible; they must be reported"
     );

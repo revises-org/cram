@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>cram logs</title>
+    <link rel="stylesheet" href="/_cram/pico.min.css">
+    <style>
+        :root { --mono: ui-monospace, "SF Mono", Menlo, monospace; }
+        table { font-family: var(--mono); font-size: 12px; }
+        td, th { padding: 3px 8px; line-height: 1.35; }
+        .s2xx { color: #3fb950 }
+        .s4xx { color: #d29922 }
+        .s5xx { color: #f85149 }
+        main { max-width: 100%; }
+        table { width: 100%; table-layout: fixed; }
+        th.time { width: 120px; }
+        th.model { width: 250px; }
+        th.status { width: 80px; }
+        th.duration { width: 100px; }
+        th.ttfb { width: 80px; }
+        th.tokens { width: 100px; }
+        td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <h3>cram gateway logs</h3>
+        <figure>
+            <table role="grid">
+                <thead>
+                    <tr>
+                        <th class="time" scope="col">time</th>
+                        <th class="model" scope="col">model</th>
+                        <th class="status" scope="col">status</th>
+                        <th class="duration" scope="col">duration</th>
+                        <th class="ttfb" scope="col">ttfb</th>
+                        <th class="tokens" scope="col">in</th>
+                        <th class="tokens" scope="col">out</th>
+                        <th class="tokens" scope="col">reasoning</th>
+                        <th class="tokens" scope="col">cached</th>
+                    </tr>
+                </thead>
+                <tbody id="logs">
+                </tbody>
+            </table>
+        </figure>
+    </main>
+
+    <script>
+        const maxRows = 500;
+        const tbody = document.getElementById('logs');
+
+        function statusClass(status) {
+            if (status >= 200 && status < 300) return 's2xx';
+            if (status >= 400 && status < 500) return 's4xx';
+            if (status >= 500) return 's5xx';
+            return '';
+        }
+
+        function formatDuration(ms) {
+            if (ms < 1000) return ms + 'ms';
+            return (ms / 1000).toFixed(2) + 's';
+        }
+
+        function formatDate(ts) {
+            const d = new Date(ts);
+            return d.toTimeString().split(' ')[0]; // HH:MM:SS
+        }
+
+        function formatToken(count) {
+            return count == null ? '—' : count;
+        }
+
+        function appendEvent(ev) {
+            const tr = document.createElement('tr');
+
+            const tdTime = document.createElement('td');
+            tdTime.textContent = formatDate(ev.timestamp);
+            tr.appendChild(tdTime);
+
+            const tdModel = document.createElement('td');
+            tdModel.textContent = ev.model || '—';
+            tdModel.title = tdModel.textContent;
+            tr.appendChild(tdModel);
+
+            const tdStatus = document.createElement('td');
+            tdStatus.textContent = ev.status;
+            tdStatus.className = statusClass(ev.status);
+            tr.appendChild(tdStatus);
+
+            const tdDuration = document.createElement('td');
+            tdDuration.textContent = formatDuration(ev.duration_ms);
+            tr.appendChild(tdDuration);
+
+            const tdTtfb = document.createElement('td');
+            tdTtfb.textContent = ev.ttfb_ms == null ? '—' : formatDuration(ev.ttfb_ms);
+            tr.appendChild(tdTtfb);
+
+            const tdIn = document.createElement('td');
+            tdIn.textContent = formatToken(ev.usage?.prompt_tokens);
+            tr.appendChild(tdIn);
+
+            const tdOut = document.createElement('td');
+            tdOut.textContent = formatToken(ev.usage?.completion_tokens);
+            tr.appendChild(tdOut);
+
+            const tdReasoning = document.createElement('td');
+            tdReasoning.textContent = formatToken(ev.usage?.reasoning_tokens);
+            tr.appendChild(tdReasoning);
+
+            const tdCached = document.createElement('td');
+            tdCached.textContent = formatToken(ev.usage?.cached_tokens);
+            tr.appendChild(tdCached);
+
+            tbody.appendChild(tr);
+
+            while (tbody.children.length > maxRows) {
+                tbody.removeChild(tbody.firstChild);
+            }
+            
+            // Auto scroll slightly
+            if (window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 100) {
+                window.scrollTo(0, document.documentElement.scrollHeight);
+            }
+        }
+
+        async function init() {
+            try {
+                const res = await fetch('/_cram/history');
+                if (res.ok) {
+                    const history = await res.json();
+                    for (const ev of history) {
+                        appendEvent(ev);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to fetch history", err);
+            }
+
+            const evtSource = new EventSource('/_cram/events');
+            evtSource.onmessage = (e) => {
+                try {
+                    const ev = JSON.parse(e.data);
+                    appendEvent(ev);
+                } catch (err) {
+                    console.error("Failed to parse event", err);
+                }
+            };
+            evtSource.onerror = () => {
+                console.log("EventSource error, reconnecting...");
+            };
+        }
+
+        init();
+    </script>
+</body>
+</html>
