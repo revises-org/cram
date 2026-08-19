@@ -15,6 +15,7 @@ mod banner;
 mod cli;
 mod config;
 mod dashboard;
+mod service;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -34,6 +35,7 @@ async fn main() -> anyhow::Result<()> {
             Ok(())
         }
         cli::Commands::Auth { provider } => auth(provider),
+        cli::Commands::Service { action } => service::handle_service(action),
         cli::Commands::Serve {
             port,
             no_open,

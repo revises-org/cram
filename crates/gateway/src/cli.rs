@@ -29,6 +29,11 @@ pub enum Commands {
         #[command(subcommand)]
         provider: AuthProvider,
     },
+    /// Manage systemd user service (Linux only)
+    Service {
+        #[command(subcommand)]
+        action: ServiceAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -38,4 +43,17 @@ pub enum AuthProvider {
         #[arg(long)]
         key_file: PathBuf,
     },
+}
+
+#[derive(Subcommand)]
+pub enum ServiceAction {
+    /// Install systemd user service
+    Install {
+        #[arg(long)]
+        port: Option<u16>,
+    },
+    /// Uninstall systemd user service
+    Uninstall,
+    /// Check systemd user service status
+    Status,
 }
