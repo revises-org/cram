@@ -9,10 +9,11 @@
 use clap::Parser;
 use std::sync::Arc;
 
-use cram_vertex::{router, AppState, Config};
+use cram_vertex::{router, AppState};
 
 mod banner;
 mod cli;
+mod config;
 mod dashboard;
 
 #[tokio::main]
@@ -30,13 +31,59 @@ async fn main() -> anyhow::Result<()> {
             if webbrowser::open(&dash_url).is_err() {
                 eprintln!("Failed to open browser. Navigate to: {dash_url}");
             }
-            return Ok(());
+            Ok(())
         }
+        cli::Commands::Auth { provider } => auth(provider),
         cli::Commands::Serve {
             port,
             no_open,
             quiet,
         } => serve(port, no_open, quiet).await,
+    }
+}
+
+fn auth(provider: cli::AuthProvider) -> anyhow::Result<()> {
+    match provider {
+        cli::AuthProvider::Vertex { key_file } => {
+            if !key_file.exists() {
+                eprintln!("cram: key file does not exist: {}", key_file.display());
+                std::process::exit(1);
+            }
+
+            let content = std::fs::read_to_string(&key_file).map_err(|e| {
+                anyhow::anyhow!("failed to read key file {}: {}", key_file.display(), e)
+            })?;
+
+            let json: serde_json::Value = serde_json::from_str(&content)
+                .map_err(|e| anyhow::anyhow!("key file is not valid JSON: {}", e))?;
+
+            if json.get("type").and_then(|v| v.as_str()) != Some("service_account")
+                && json.get("client_email").is_none()
+            {
+                eprintln!(
+                    "cram: {} does not appear to be a Google service account key file",
+                    key_file.display()
+                );
+                std::process::exit(1);
+            }
+
+            let canonical = std::fs::canonicalize(&key_file)
+                .unwrap_or_else(|_| key_file.clone())
+                .display()
+                .to_string();
+
+            let home = config::cram_home();
+            let creds_path = home.join("credentials.toml");
+            let mut creds = config::load_credentials_file(&creds_path)?.unwrap_or_default();
+
+            let mut vertex = creds.vertex.unwrap_or_default();
+            vertex.key_file = Some(canonical);
+            creds.vertex = Some(vertex);
+
+            config::save_credentials_file(&creds_path, &creds)?;
+            println!("Saved Vertex credentials to {}", creds_path.display());
+            Ok(())
+        }
     }
 }
 
@@ -49,25 +96,29 @@ async fn serve(port: Option<u16>, no_open: bool, quiet: bool) -> anyhow::Result<
         )
         .init();
 
-    let cfg = Config::from_env().unwrap_or_else(|e| {
-        let msg = e.to_string();
-        if msg.contains("missing environment variable GCP_PROJECT_ID") {
-            eprintln!("\ncram: missing GCP_PROJECT_ID");
-            eprintln!(
-                "Set it to the Google Cloud Project ID (not the display name or project number)."
-            );
-        } else {
-            eprintln!("\ncram configuration error: {e}");
-        }
+    let home = config::cram_home();
+    let config_file = config::load_config_file(&home.join("config.toml")).unwrap_or_else(|e| {
+        eprintln!("\ncram: {e}");
         std::process::exit(1);
     });
 
-    if cfg.gateway_key().is_empty() {
+    let credentials_file = config::load_credentials_file(&home.join("credentials.toml"))
+        .unwrap_or_else(|e| {
+            eprintln!("\ncram: {e}");
+            std::process::exit(1);
+        });
+
+    let resolved = config::resolve(port, config_file, credentials_file).unwrap_or_else(|e| {
+        eprintln!("\ncram: {e}");
+        std::process::exit(1);
+    });
+
+    if resolved.vertex.gateway_key().is_empty() {
         tracing::warn!("GATEWAY_API_KEY is empty — the gateway will not check authentication");
     }
 
     let observer = Arc::new(dashboard::DashboardObserver::new());
-    let state = match AppState::discover(cfg.clone()).await {
+    let state = match AppState::discover(resolved.vertex.clone()).await {
         Ok(s) => s.with_observer(observer.clone()),
         Err(e) => {
             let msg = e.to_string();
@@ -80,6 +131,8 @@ async fn serve(port: Option<u16>, no_open: bool, quiet: bool) -> anyhow::Result<
                 eprintln!("  To fix, either point at a service account key:");
                 eprintln!("    export GOOGLE_APPLICATION_CREDENTIALS=/path/to/sa.json");
                 eprintln!("    (fish: set -x GOOGLE_APPLICATION_CREDENTIALS /path/to/sa.json)\n");
+                eprintln!("  or run:");
+                eprintln!("    cram auth vertex --key-file /path/to/sa.json\n");
                 eprintln!("  or log in with your own account:");
                 eprintln!("    gcloud auth application-default login\n");
             } else {
@@ -89,27 +142,27 @@ async fn serve(port: Option<u16>, no_open: bool, quiet: bool) -> anyhow::Result<
         }
     };
 
-    let port = port.unwrap_or(8787);
-    let addr = std::env::var("BIND_ADDR").unwrap_or_else(|_| format!("127.0.0.1:{port}"));
+    let bind_port = resolved.port;
+    let addr = std::env::var("BIND_ADDR").unwrap_or_else(|_| format!("127.0.0.1:{bind_port}"));
     let listener = match tokio::net::TcpListener::bind(&addr).await {
         Ok(l) => l,
         Err(e) if e.kind() == std::io::ErrorKind::AddrInUse => {
-            eprintln!("\ncram: port {port} is already in use.");
+            eprintln!("\ncram: port {bind_port} is already in use.");
             eprintln!(
                 "To fix, either stop the other instance or start cram on a different port:\n"
             );
-            eprintln!("  cram serve --port 8788\n");
+            eprintln!("  cram serve --port {}\n", bind_port + 1);
             std::process::exit(1);
         }
         Err(e) => return Err(e.into()),
     };
 
     if !quiet {
-        banner::print_banner(&cfg, port);
+        banner::print_banner(&resolved.vertex, bind_port);
     }
 
     if !no_open {
-        let _ = webbrowser::open(&format!("http://127.0.0.1:{port}/_cram/"));
+        let _ = webbrowser::open(&format!("http://127.0.0.1:{bind_port}/_cram/"));
     }
 
     let (shutdown_tx, mut shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);

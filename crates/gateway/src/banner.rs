@@ -1,3 +1,6 @@
+// Copyright 2026 Huy Nguyen Nhu
+// SPDX-License-Identifier: Apache-2.0
+
 use owo_colors::{OwoColorize, Rgb};
 use terminal_size::{terminal_size, Width};
 

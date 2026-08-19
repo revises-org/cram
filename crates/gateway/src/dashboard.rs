@@ -1,3 +1,6 @@
+// Copyright 2026 Huy Nguyen Nhu
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{collections::VecDeque, sync::Arc, sync::Mutex, time::SystemTime};
 
 use axum::{
