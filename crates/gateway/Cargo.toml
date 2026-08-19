@@ -7,6 +7,7 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Local gateway for cloud AI platforms"
+publish = false
 
 [dependencies]
 cram-vertex = { path = "../cram-vertex" }
@@ -28,3 +29,6 @@ terminal_size = "0.4"
 webbrowser = "1.0"
 toml = "=0.8.2"
 serde_json = { workspace = true, optional = false }
+
+[package.metadata.dist]
+dist = true
