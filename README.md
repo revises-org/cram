@@ -12,7 +12,7 @@ Local gateway that terminates a static bearer token and re-signs requests for
 cloud AI platforms — so any editor can talk to them.
 
 [![CI](https://github.com/revises-org/cram/actions/workflows/ci.yml/badge.svg)](https://github.com/revises-org/cram/actions/workflows/ci.yml)
-[![crates.io](https://img.shields.io/crates/v/cram.svg)](https://crates.io/crates/cram)
+[![crates.io](https://img.shields.io/crates/v/gateway-for-vertex-ai.svg)](https://crates.io/crates/gateway-for-vertex-ai)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 </div>
