@@ -342,7 +342,7 @@ dependencies = [
 
 [[package]]
 name = "cram"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -353,7 +353,9 @@ dependencies = [
  "futures-util",
  "mime_guess",
  "owo-colors",
+ "reqwest",
  "rust-embed",
+ "semver",
  "serde",
  "serde_json",
  "terminal_size",
@@ -367,7 +369,7 @@ dependencies = [
 
 [[package]]
 name = "cram-vertex"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "anyhow",
  "async-trait",

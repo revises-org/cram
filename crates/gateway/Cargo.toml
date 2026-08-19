@@ -6,7 +6,8 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Local gateway for cloud AI platforms"
+homepage.workspace = true
+description = "AI gateway — use Vertex AI from any editor that only speaks Bearer tokens"
 publish = false
 
 [dependencies]
@@ -29,6 +30,8 @@ terminal_size = "0.4"
 webbrowser = "1.0"
 toml = "=1.1.4"
 serde_json = { workspace = true, optional = false }
+reqwest = { workspace = true }
+semver = "1.0"
 
 [package.metadata.dist]
 dist = true

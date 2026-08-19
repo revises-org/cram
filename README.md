@@ -55,7 +55,7 @@ status, time to first token, and how much of your prompt was cached.
 ## Quick start
 
 ```bash
-cargo install cram
+brew install revises-org/tap/cram
 cram auth vertex --key-file /path/to/sa.json
 cram
 ```
@@ -83,11 +83,35 @@ of permissions.
 
 </details>
 
+## Running as a service
+
+By default cram runs in the foreground and stops when you close the terminal.
+To have it start with your session instead:
+
+```bash
+cram service install
+```
+
+That writes a systemd user unit and enables it. Nothing runs as root, and
+nothing is installed outside your home directory.
+
+```bash
+systemctl --user status cram       # is it running
+journalctl --user -u cram -f       # logs
+cram service uninstall             # remove it completely
+```
+
+The service stops when you log out and starts again when you log back in. To
+keep it running while logged out: `loginctl enable-linger $USER`.
+
+Linux only for now. On macOS and Windows, run `cram` in a terminal or a
+multiplexer.
+
 ## What it looks like
 
 ```
    ╭─────────╮
-   │  c r a m │  0.1.2
+   │  c r a m │  0.1.3
    ╰─────────╯
 
   gateway    http://127.0.0.1:8787
@@ -192,6 +216,7 @@ cram                    start the gateway (same as cram serve)
 cram serve              --port N, --no-open, --quiet
 cram dash               open the dashboard
 cram auth vertex        --key-file /path/to/sa.json
+cram service install|uninstall|status
 ```
 
 ## Security
@@ -207,10 +232,15 @@ which is to say, your source code.
   request. Credentials go through the CLI.
 - **Bodies are never logged**, in memory or on disk. Only metadata.
 - **Authorization headers are redacted at the logging layer**, not optionally.
+- **cram contacts `api.github.com` once a day** to check whether a newer release
+  exists, and prints a line if so. It sends nothing but the request itself — no
+  telemetry, no identifiers, no usage data. It never downloads or installs
+  anything on its own. Disable it with `CRAM_NO_UPDATE_CHECK=1` or
+  `[update] check = false` in the config.
 
 ## Using it as a library
 
-The binary is a thin wrapper. `cram-vertex` is published separately:
+The binary is a thin wrapper. `cram-vertex` is available as a git dependency (`cram-vertex = { git = "https://github.com/revises-org/cram" }`):
 
 ```rust
 use cram_vertex::{router, AppState, Config};
