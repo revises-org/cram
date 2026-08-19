@@ -207,6 +207,7 @@ which is to say, your source code.
   request. Credentials go through the CLI.
 - **Bodies are never logged**, in memory or on disk. Only metadata.
 - **Authorization headers are redacted at the logging layer**, not optionally.
+- **Update checks phone home once a day.** cram contacts `api.github.com/repos/revises-org/cram/releases/latest` at most once every 24 hours to check if a new version is available. It sends only a standard HTTP GET request with a `User-Agent: cram/<version>` header — no telemetry, no credentials, no prompt content, and no usage data. Disable it anytime with `CRAM_NO_UPDATE_CHECK=1` or set `[update] check = false` in `~/.cram/config.toml`.
 
 ## Using it as a library
 

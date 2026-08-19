@@ -18,6 +18,12 @@ pub struct ConfigFile {
     pub port: Option<u16>,
     pub vertex: Option<VertexSection>,
     pub models: Option<HashMap<String, String>>,
+    pub update: Option<UpdateSection>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
+pub struct UpdateSection {
+    pub check: Option<bool>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
@@ -45,6 +51,26 @@ pub struct GatewayCredentials {
 pub struct ResolvedConfig {
     pub vertex: VertexConfig,
     pub port: u16,
+}
+
+pub fn is_update_check_disabled(config_file: Option<&ConfigFile>) -> bool {
+    if let Ok(val) = std::env::var("CRAM_NO_UPDATE_CHECK") {
+        let trimmed = val.trim();
+        if trimmed == "1"
+            || trimmed.eq_ignore_ascii_case("true")
+            || trimmed.eq_ignore_ascii_case("yes")
+        {
+            return true;
+        }
+    }
+    if let Some(cfg) = config_file {
+        if let Some(update) = &cfg.update {
+            if update.check == Some(false) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// Directory where cram stores its configuration and credentials.
@@ -246,6 +272,7 @@ mod tests {
                 location: Some("us-central1".into()),
             }),
             models: None,
+            update: None,
         };
         let credentials_file = CredentialsFile {
             vertex: None,
@@ -266,6 +293,23 @@ mod tests {
     }
 
     #[test]
+    fn update_check_disabled_via_env() {
+        std::env::set_var("CRAM_NO_UPDATE_CHECK", "1");
+        assert!(is_update_check_disabled(None));
+        std::env::remove_var("CRAM_NO_UPDATE_CHECK");
+    }
+
+    #[test]
+    fn update_check_disabled_via_config() {
+        std::env::remove_var("CRAM_NO_UPDATE_CHECK");
+        let cfg = ConfigFile {
+            update: Some(UpdateSection { check: Some(false) }),
+            ..Default::default()
+        };
+        assert!(is_update_check_disabled(Some(&cfg)));
+    }
+
+    #[test]
     fn precedence_flag_overrides_env_and_config() {
         std::env::set_var("GCP_PROJECT_ID", "p");
         std::env::set_var("BIND_ADDR", "127.0.0.1:8888");
@@ -274,6 +318,7 @@ mod tests {
             port: Some(7777),
             vertex: None,
             models: None,
+            update: None,
         };
         let res = resolve(Some(9000), Some(config_file), None).unwrap();
         assert_eq!(res.port, 9000);

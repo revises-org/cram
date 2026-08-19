@@ -16,6 +16,7 @@ mod cli;
 mod config;
 mod dashboard;
 mod service;
+mod update;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -110,6 +111,10 @@ async fn serve(port: Option<u16>, no_open: bool, quiet: bool) -> anyhow::Result<
             std::process::exit(1);
         });
 
+    let update_disabled = config::is_update_check_disabled(config_file.as_ref());
+    let update_notice = update::get_cached_update_notice(update_disabled);
+    update::spawn_update_check(update_disabled);
+
     let resolved = config::resolve(port, config_file, credentials_file).unwrap_or_else(|e| {
         eprintln!("\ncram: {e}");
         std::process::exit(1);
@@ -160,7 +165,7 @@ async fn serve(port: Option<u16>, no_open: bool, quiet: bool) -> anyhow::Result<
     };
 
     if !quiet {
-        banner::print_banner(&resolved.vertex, bind_port);
+        banner::print_banner(&resolved.vertex, bind_port, update_notice);
     }
 
     if !no_open {
